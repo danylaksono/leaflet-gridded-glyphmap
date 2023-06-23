@@ -11,7 +11,7 @@
         "prepare": "npm run build"
     },
     "exports": {
-        "esm": "./dist/index.min.js"
+        "umd": "./dist/leaflet-gridded-glyph.min.js"
     },
     "files": [
         "src",
