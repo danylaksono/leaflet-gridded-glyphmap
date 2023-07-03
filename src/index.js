@@ -130,6 +130,7 @@ L.GriddedGlyph = L.CanvasLayer.extend({
   drawGrid: function (ctx, bounds) {
     // Set the fill style with transparency
     ctx.fillStyle = "rgba(255, 0, 0, 0.5)";
+
     // Convert the bounds to container points
     var northWest = this._map.latLngToContainerPoint(bounds.getNorthWest());
     var southEast = this._map.latLngToContainerPoint(bounds.getSouthEast());
@@ -144,12 +145,15 @@ L.GriddedGlyph = L.CanvasLayer.extend({
     // Draw grid of rectangles with padding
     for (var i = 0; i < rows; i++) {
       for (var j = 0; j < cols; j++) {
-        ctx.fillRect(
-          northWest.x + j * (rectSize + this.padding),
-          northWest.y + i * (rectSize + this.padding),
-          rectSize - this.padding,
-          rectSize - this.padding
-        );
+        // Only draw the rectangle if the cell contains data
+        if (this.gridData[i][j].count > 0) {
+          ctx.fillRect(
+            northWest.x + j * (rectSize + this.padding),
+            northWest.y + i * (rectSize + this.padding),
+            rectSize - this.padding,
+            rectSize - this.padding
+          );
+        }
       }
     }
   },
@@ -171,12 +175,18 @@ L.GriddedGlyph = L.CanvasLayer.extend({
           cellData.bounds.getSouthEast()
         );
 
-        console.log("northsouth", northWest, southEast);
-
         // Calculate circle center and radius
         var centerX = (northWest.x + southEast.x) / 2;
         var centerY = (northWest.y + southEast.y) / 2;
-        var radius = cellData.count * 5;
+
+        // Calculate the maximum radius based on the size of the cell and the padding between cells
+        var maxRadius = Math.min(
+          (southEast.x - northWest.x - this.padding) / 2,
+          (southEast.y - northWest.y - this.padding) / 2
+        );
+
+        // Calculate the radius based on the count of data in the cell
+        var radius = Math.min(cellData.count * 5, maxRadius);
 
         // Draw circle with size that represents number of features in cell
         ctx.beginPath();

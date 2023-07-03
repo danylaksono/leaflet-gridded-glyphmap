@@ -26,12 +26,17 @@
     <script src="../src/index.js"></script>
     <div id="map"></div>
     <script>
-      var map = L.map("map").setView([-7.505, 110.23], 13);
-      L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        maxZoom: 19,
-        attribution:
-          '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-      }).addTo(map);
+      var map = L.map("map");
+
+      var CartoDB_Positron = L.tileLayer(
+        "https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png",
+        {
+          attribution:
+            '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+          subdomains: "abcd",
+          maxZoom: 20,
+        }
+      ).addTo(map);
 
       // Base GeoJSON Layer
       geojsonLayer = L.geoJson(data, {
@@ -46,7 +51,7 @@
           });
         },
       });
-      geojsonLayer.addTo(map);
+      // geojsonLayer.addTo(map);
       map.fitBounds(geojsonLayer.getBounds());
 
       // Gridded-glyphmap extension layer
@@ -58,6 +63,18 @@
         barColor: "green",
       });
       griddedLayer.addTo(map);
+
+      // Controls
+      var baseMaps = {
+        CartoDB_Positron: CartoDB_Positron,
+      };
+
+      var overlayMaps = {
+        griddedLayer: griddedLayer,
+        // geojsonLayer: geojsonLayer,
+      };
+
+      var layerControl = L.control.layers(baseMaps, overlayMaps).addTo(map);
     </script>
   </body>
 </html>
