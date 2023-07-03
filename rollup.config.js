@@ -10,17 +10,17 @@ export default {
   input: "src/index.js",
   output: {
     format: "esm",
-    // file: "dist/leaflet-gridded-glyph.min.js",
-    dir: "dist",
+    file: "dist/leaflet-gridded-glyph.min.js",
+    // dir: "dist",
     name: "griddedglyphs",
-    globals: {leaflet: "leaflet"},
+    // globals: {leaflet: "leaflet"},
   },
-//   external: ["leaflet"],
+  //   external: ["leaflet"],
   plugins: [
-    commonjs(), 
-    noderesolve(), 
+    commonjs(),
+    noderesolve(),
     babel({ babelHelpers: "bundled" }), // transpilation
-    terser(), 
+    terser(),
     // del({
     //   targets: "/var/www/html/npm_test/griddedglyphs/index.min.js",
     //   force: true,
@@ -32,7 +32,7 @@ export default {
     // }),
   ],
   watch: {
-    include: 'src/**',
-    exclude: 'node_modules/**'
-  }
+    include: "src/**",
+    exclude: "node_modules/**",
+  },
 };
