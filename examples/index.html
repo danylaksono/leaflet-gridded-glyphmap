@@ -32,7 +32,7 @@ function fetchJSON(url) {
     });
 };
 
-var data = fetchJSON('data/criminals.geojson')
+var data = fetchJSON('data/criminals.json')
             .then(function(data) { return data })
 
 geojsonLayer = L.geoJson(data, {
