@@ -1,4 +1,4 @@
-console.log(L);
+console.log(L); // check leaflet global object
 
 L.GriddedGlyph = L.CanvasLayer.extend({
   initialize: function (options) {

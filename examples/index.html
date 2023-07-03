@@ -32,8 +32,7 @@
           '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>',
       }).addTo(map);
 
-      // console.log(L);
-
+      // Base GeoJSON Layer
       geojsonLayer = L.geoJson(data, {
         pointToLayer: function (feature, latlng) {
           return L.circleMarker(latlng, {
@@ -46,10 +45,18 @@
           });
         },
       });
-
       geojsonLayer.addTo(map);
-
       map.fitBounds(geojsonLayer.getBounds());
+
+      // Gridded-glyphmap extension layer
+      var griddedLayer = new L.GriddedGlyph({
+        gridSize: 50,
+        padding: 5,
+        geojsonLayer: geojsonLayer,
+        // customDrawFunction: drawBarCharts,
+        barColor: "green",
+      });
+      griddedLayer.addTo(map);
     </script>
   </body>
 </html>
