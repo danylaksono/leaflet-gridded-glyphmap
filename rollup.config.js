@@ -13,7 +13,7 @@ export default {
     file: "dist/leaflet-gridded-glyph.min.js",
     // dir: "dist",
     name: "griddedglyphs",
-    // globals: {leaflet: "leaflet"},
+    globals: { rbush: "rbush" },
   },
   //   external: ["leaflet"],
   plugins: [

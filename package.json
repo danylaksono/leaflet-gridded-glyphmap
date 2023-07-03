@@ -25,6 +25,7 @@
         "rollup-plugin-terser": "^7.0.2"
     },
     "dependencies": {
-        "leaflet": "^1.9.4"
+        "leaflet": "^1.9.4",
+        "rbush": "^3.0.1"
     }
 }

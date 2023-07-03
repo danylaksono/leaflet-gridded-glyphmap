@@ -1,4 +1,6 @@
-console.log(L); // check leaflet global object
+import RBush from "rbush";
+
+// console.log(L); // check leaflet global object
 
 L.GriddedGlyph = L.CanvasLayer.extend({
   initialize: function (options) {
@@ -75,13 +77,58 @@ L.GriddedGlyph = L.CanvasLayer.extend({
 
     // Check if mouse is within grid bounds
     if (row >= 0 && row < rows && col >= 0 && col < cols) {
-      console.log("Grid cell:", row, col);
-      console.log(
-        "Cell boundaries:",
-        this.gridData[row][col].bounds.toBBoxString()
-      );
+      // console.log("Grid cell:", row, col);
+      // console.log(
+      //   "Cell boundaries:",
+      //   this.gridData[row][col].bounds.toBBoxString()
+      // );
     }
   },
+  // calculateGridData: function (bounds) {
+  //   // Convert bounds to container points
+  //   var northWest = this._map.latLngToContainerPoint(bounds.getNorthWest());
+  //   var southEast = this._map.latLngToContainerPoint(bounds.getSouthEast());
+
+  //   // Calculate size of rectangles in pixels
+  //   var rectSize = this.gridSize;
+
+  //   // Calculate number of rows and columns
+  //   var cols = Math.ceil((southEast.x - northWest.x) / rectSize);
+  //   var rows = Math.ceil((southEast.y - northWest.y) / rectSize);
+
+  //   // Initialize grid data array
+  //   this.gridData = [];
+  //   for (var i = 0; i < rows; i++) {
+  //     this.gridData[i] = [];
+  //     for (var j = 0; j < cols; j++) {
+  //       this.gridData[i][j] = {
+  //         count: 0,
+  //         bounds: L.latLngBounds(
+  //           this._map.containerPointToLatLng([
+  //             northWest.x + j * (rectSize + this.padding),
+  //             northWest.y + i * (rectSize + this.padding),
+  //           ]),
+  //           this._map.containerPointToLatLng([
+  //             northWest.x + (j + 1) * (rectSize + this.padding),
+  //             northWest.y + (i + 1) * (rectSize + this.padding),
+  //           ])
+  //         ),
+  //       };
+  //     }
+  //   }
+
+  //   // Count number of features in each cell
+  //   var gridData = this.gridData;
+  //   this.geojsonLayer.eachLayer(function (layer) {
+  //     for (var i = 0; i < rows; i++) {
+  //       for (var j = 0; j < cols; j++) {
+  //         if (gridData[i][j].bounds.contains(layer.getLatLng())) {
+  //           gridData[i][j].count++;
+  //         }
+  //       }
+  //     }
+  //   });
+  // },
   calculateGridData: function (bounds) {
     // Convert bounds to container points
     var northWest = this._map.latLngToContainerPoint(bounds.getNorthWest());
@@ -115,18 +162,38 @@ L.GriddedGlyph = L.CanvasLayer.extend({
       }
     }
 
-    // Count number of features in each cell
-    var gridData = this.gridData;
+    // Create a new RBush index
+    var tree = new rbush();
+
+    // Insert features into the index
+    var features = [];
     this.geojsonLayer.eachLayer(function (layer) {
-      for (var i = 0; i < rows; i++) {
-        for (var j = 0; j < cols; j++) {
-          if (gridData[i][j].bounds.contains(layer.getLatLng())) {
-            gridData[i][j].count++;
-          }
-        }
-      }
+      var latLng = layer.getLatLng();
+      features.push({
+        minX: latLng.lng,
+        minY: latLng.lat,
+        maxX: latLng.lng,
+        maxY: latLng.lat,
+        layer: layer,
+      });
     });
+    tree.load(features);
+
+    // Count number of features in each cell using the RBush index
+    for (var i = 0; i < rows; i++) {
+      for (var j = 0; j < cols; j++) {
+        var cellBounds = this.gridData[i][j].bounds;
+        var results = tree.search({
+          minX: cellBounds.getWest(),
+          minY: cellBounds.getSouth(),
+          maxX: cellBounds.getEast(),
+          maxY: cellBounds.getNorth(),
+        });
+        this.gridData[i][j].count = results.length;
+      }
+    }
   },
+
   drawGrid: function (ctx, bounds) {
     // Set the fill style with transparency
     ctx.fillStyle = "rgba(255, 0, 0, 0.5)";
