@@ -115,28 +115,18 @@ L.GriddedGlyph = L.CanvasLayer.extend({
       }
     }
 
-    // Create a worker to count the number of features in each cell
-    var worker = new Worker("worker.js");
-
-    // Send data to the worker
-    worker.postMessage({
-      gridData: this.gridData,
-      features: this.geojsonLayer.toGeoJSON().features,
+    // Count number of features in each cell
+    var gridData = this.gridData;
+    this.geojsonLayer.eachLayer(function (layer) {
+      for (var i = 0; i < rows; i++) {
+        for (var j = 0; j < cols; j++) {
+          if (gridData[i][j].bounds.contains(layer.getLatLng())) {
+            gridData[i][j].count++;
+          }
+        }
+      }
     });
-
-    // Handle message from the worker
-    worker.onmessage = function (e) {
-      // Update grid data with the results from the worker
-      this.gridData = e.data.gridData;
-
-      // Terminate the worker
-      worker.terminate();
-
-      // Redraw the layer
-      this.redraw();
-    }.bind(this);
   },
-
   drawGrid: function (ctx, bounds) {
     // Set the fill style with transparency
     ctx.fillStyle = "rgba(255, 0, 0, 0.5)";
