@@ -34,6 +34,7 @@ L.CanvasLayer = (L.Layer ? L.Layer : L.Class).extend({
     this._updatePosition();
     this.drawLayer();
   },
+
   //-------------------------------------------------------------
   getEvents: function () {
     var events = {

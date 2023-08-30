@@ -1,11 +1,15 @@
-import RBush from "rbush";
+import rbush from "rbush";
 
-// console.log(L); // check leaflet global object
+// Check if Leaflet global object is available
+// console.log(L);
 
 L.GriddedGlyph = L.CanvasLayer.extend({
   initialize: function (options) {
     // Call the parent class's initialize method
     L.CanvasLayer.prototype.initialize.call(this, options);
+
+    // initialize tree for spatial indexing
+    this._tree = new rbush();
     // Set options
     this.gridSize = options.gridSize;
     this.padding = options.padding;
@@ -18,6 +22,10 @@ L.GriddedGlyph = L.CanvasLayer.extend({
   onAdd: function (map) {
     // Call the parent class's onAdd method
     L.CanvasLayer.prototype.onAdd.call(this, map);
+
+    // recalculate tree when map is moved
+    map.on("moveend", this._recalculateTree, this);
+
     // Add event listeners for the zoomend and moveend events to the map
     map.on("zoomend moveend", this.onMapChange, this);
     // Add an event listener for the mousemove event to the map
@@ -26,6 +34,10 @@ L.GriddedGlyph = L.CanvasLayer.extend({
   onRemove: function (map) {
     // Call the parent class's onRemove method
     L.CanvasLayer.prototype.onRemove.call(this, map);
+
+    // recalculate tree on moveend stops
+    map.off("moveend", this._recalculateTree, this);
+
     // Remove the event listeners for the zoomend and moveend events from the map
     map.off("zoomend moveend", this.onMapChange, this);
     // Remove the event listener for the mousemove event from the map
@@ -129,6 +141,23 @@ L.GriddedGlyph = L.CanvasLayer.extend({
   //     }
   //   });
   // },
+  _recalculateTree: function () {
+    this._tree.clear();
+
+    this.geojsonLayer.eachLayer((layer) => {
+      const latLng = layer.getLatLng();
+
+      this._tree.insert({
+        minX: latLng.lng,
+        minY: latLng.lat,
+        maxX: latLng.lng,
+        maxY: latLng.lat,
+        data: layer,
+      });
+    });
+
+    this._redraw();
+  },
   calculateGridData: function (bounds) {
     // Convert bounds to container points
     var northWest = this._map.latLngToContainerPoint(bounds.getNorthWest());
@@ -280,6 +309,32 @@ L.GriddedGlyph = L.CanvasLayer.extend({
     // Call the custom draw function if it is defined
     if (this.customDrawFunction) {
       // this.customDrawFunction.call(this, ctx, bounds);
+    }
+  },
+
+  _redraw() {
+    // Clear existing canvas
+    const canvas = this._canvas;
+    const ctx = canvas.getContext("2d");
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Recalculate grid data
+    const bounds = this.geojsonLayer.getBounds();
+    this.calculateGridData(bounds);
+
+    // Redraw grid
+    ctx.save();
+    this.drawGrid(ctx, bounds);
+    ctx.restore();
+
+    // Redraw circles
+    ctx.save();
+    this.drawCircles(ctx, bounds);
+    ctx.restore();
+
+    // Call custom draw function
+    if (this.customDrawFunction) {
+      this.customDrawFunction(ctx, bounds);
     }
   },
 });
