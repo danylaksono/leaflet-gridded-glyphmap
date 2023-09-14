@@ -42,7 +42,7 @@
       geojsonLayer = L.geoJson(data, {
         pointToLayer: function (feature, latlng) {
           return L.circleMarker(latlng, {
-            radius: 8,
+            radius: 1,
             fillColor: "#ff7800",
             color: "#000",
             weight: 1,
@@ -51,7 +51,7 @@
           });
         },
       });
-      // geojsonLayer.addTo(map);
+      geojsonLayer.addTo(map);
       map.fitBounds(geojsonLayer.getBounds());
 
       // Gridded-glyphmap extension layer
