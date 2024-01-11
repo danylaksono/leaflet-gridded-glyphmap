@@ -130,17 +130,17 @@ L.CanvasLayer = (L.Layer ? L.Layer : L.Class).extend({
   },
   // -- L.DomUtil.setTransform from leaflet 1.0.0 to work on 0.0.7
   //------------------------------------------------------------------------------
-  _setTransform: function (el, offset, scale) {
-    var pos = offset || new L.Point(0, 0);
+  // _setTransform: function (el, offset, scale) {
+  //   var pos = offset || new L.Point(0, 0);
 
-    el.style[L.DomUtil.TRANSFORM] =
-      (L.Browser.ie3d
-        ? "translate(" + pos.x + "px," + pos.y + "px)"
-        : "translate3d(" + pos.x + "px," + pos.y + "px,0)") +
-      (scale ? " scale(" + scale + ")" : "");
-  },
+  //   el.style[L.DomUtil.TRANSFORM] =
+  //     (L.Browser.ie3d
+  //       ? "translate(" + pos.x + "px," + pos.y + "px)"
+  //       : "translate3d(" + pos.x + "px," + pos.y + "px,0)") +
+  //     (scale ? " scale(" + scale + ")" : "");
+  // },
 
-  //------------------------------------------------------------------------------
+  // //------------------------------------------------------------------------------
   _animateZoom: function (e) {
     var scale = this._map.getZoomScale(e.zoom);
     // -- different calc of animation zoom  in leaflet 1.0.3 thanks @peterkarabinovic, @jduggan1

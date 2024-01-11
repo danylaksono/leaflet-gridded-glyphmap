@@ -142,9 +142,37 @@ L.GriddedGlyph = L.CanvasLayer.extend({
               northWest.y + (i + 1) * (rectSize + this.padding),
             ])
           ),
+          attributes: [],
         };
       }
     }
+
+    // // Iterate through features directly, mapping them to grid cells
+    // // this is used for smaller dataset. for larger dataset, use rbush
+    // this.geojsonLayer.eachLayer((layer) => {
+    //   const latLng = layer.getLatLng();
+
+    //   // Find the corresponding grid cell index using container coordinates
+    //   const cellX = Math.floor(
+    //     (this._map.latLngToContainerPoint(latLng).x - northWest.x) / rectSize
+    //   );
+    //   const cellY = Math.floor(
+    //     (this._map.latLngToContainerPoint(latLng).y - northWest.y) / rectSize
+    //   );
+
+    //   // Ensure cell indices are within bounds
+    //   if (cellX >= 0 && cellX < cols && cellY >= 0 && cellY < rows) {
+    //     const cell = this.gridData[cellY][cellX];
+    //     cell.count++; // Increment feature count
+
+    //     // Store selected attributes
+    //     const attributesToStore = [
+    //       layer.feature.properties.Name,
+    //       layer.feature.properties.Tahun,
+    //     ]; // Example attributes
+    //     cell.attributes.push(attributesToStore);
+    //   }
+    // });
 
     // Create a new RBush index
     var tree = new rbush();
@@ -159,6 +187,7 @@ L.GriddedGlyph = L.CanvasLayer.extend({
         maxX: latLng.lng,
         maxY: latLng.lat,
         layer: layer,
+        data: layer.feature.properties,
       });
     });
     tree.load(features);
@@ -174,6 +203,13 @@ L.GriddedGlyph = L.CanvasLayer.extend({
           maxY: cellBounds.getNorth(),
         });
         this.gridData[i][j].count = results.length;
+
+        // Store selected attributes
+        cellData = this.gridData[i][j];
+        for (const feature of results) {
+          cellData.attributes.push(feature.data.properties); // Adjust based on your attribute structure
+          // cellData.aggregatedValue += // your aggregation logic using feature.data.properties
+        }
       }
     }
   },
@@ -217,6 +253,7 @@ L.GriddedGlyph = L.CanvasLayer.extend({
       for (var j = 0; j < this.gridData[i].length; j++) {
         // Get cell data
         var cellData = this.gridData[i][j];
+        console.log("Grid data: ", cellData.attributes);
 
         // Convert cell bounds to container points
         var northWest = this._map.latLngToContainerPoint(
