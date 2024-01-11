@@ -17,6 +17,7 @@ L.GriddedGlyph = L.CanvasLayer.extend({
     // Initialize grid data array
     this.gridData = [];
   },
+
   onAdd: function (map) {
     // Call the parent class's onAdd method
     L.CanvasLayer.prototype.onAdd.call(this, map);
@@ -30,6 +31,7 @@ L.GriddedGlyph = L.CanvasLayer.extend({
     // Add an event listener for the mousemove event to the map
     map.on("mousemove", this.onMouseMove, this);
   },
+
   onRemove: function (map) {
     // Call the parent class's onRemove method
     L.CanvasLayer.prototype.onRemove.call(this, map);
@@ -43,6 +45,7 @@ L.GriddedGlyph = L.CanvasLayer.extend({
     // Remove the event listener for the mousemove event from the map
     map.off("mousemove", this.onMouseMove, this);
   },
+
   onMapChange: function () {
     // Clear the canvas
     var canvas = this._canvas;
@@ -62,6 +65,7 @@ L.GriddedGlyph = L.CanvasLayer.extend({
       // this.customDrawFunction.call(this, ctx, bounds);
     }
   },
+
   onMouseMove: function (e) {
     // Get current mouse position in container points
     var mousePos = e.containerPoint;
@@ -96,6 +100,7 @@ L.GriddedGlyph = L.CanvasLayer.extend({
       // );
     }
   },
+
   _recalculateTree: function () {
     this._tree.clear();
 
@@ -113,6 +118,7 @@ L.GriddedGlyph = L.CanvasLayer.extend({
 
     this._redraw();
   },
+
   calculateGridData: function (bounds) {
     // Convert bounds to container points
     var northWest = this._map.latLngToContainerPoint(bounds.getNorthWest());
@@ -202,12 +208,13 @@ L.GriddedGlyph = L.CanvasLayer.extend({
           maxX: cellBounds.getEast(),
           maxY: cellBounds.getNorth(),
         });
+        // count number of features in each tree cells
         this.gridData[i][j].count = results.length;
 
         // Store selected attributes
         cellData = this.gridData[i][j];
         for (const feature of results) {
-          cellData.attributes.push(feature.data.properties); // Adjust based on your attribute structure
+          cellData.attributes.push(feature.data); // Adjust based on your attribute structure
           // cellData.aggregatedValue += // your aggregation logic using feature.data.properties
         }
       }
@@ -244,6 +251,7 @@ L.GriddedGlyph = L.CanvasLayer.extend({
       }
     }
   },
+
   drawCircles: function (ctx, bounds) {
     // Set the stroke style
     ctx.strokeStyle = "black";
@@ -283,6 +291,7 @@ L.GriddedGlyph = L.CanvasLayer.extend({
       }
     }
   },
+
   onDrawLayer: function (info) {
     var canvas = info.canvas;
     var ctx = canvas.getContext("2d");
