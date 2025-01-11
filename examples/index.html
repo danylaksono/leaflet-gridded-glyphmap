@@ -26,16 +26,6 @@
     <!-- <script src="../src/index.js"></script> -->
     <div id="map"></div>
     <script>
-      function drawBarCharts(ctx, bounds, cellData) {
-        const barWidth = 10; // Adjust as needed
-        const barHeight = Math.min(cellData.attributes[0][0] * 5, 50); // Example attribute usage
-        const barX = bounds.getCenter().lng - barWidth / 2;
-        const barY = bounds.getCenter().lat - barHeight / 2;
-
-        ctx.fillStyle = "green"; // Customize colors as needed
-        ctx.fillRect(barX, barY, barWidth, barHeight);
-      }
-
       // --- map initialization ---
       var map = L.map("map");
 

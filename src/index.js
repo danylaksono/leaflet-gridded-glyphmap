@@ -8,11 +8,13 @@ L.GriddedGlyph = L.CanvasLayer.extend({
     // initialize tree for spatial indexing
     this._tree = new rbush();
 
-    // Set options
-    this.gridSize = options.gridSize;
-    this.padding = options.padding;
+    // Set options (using defaults for undefined options)
+    this.options = options || {}; // Ensure options object exists
+    this.gridSize = options.gridSize || 20; // Default grid size
+    this.padding = options.padding || 5; // Default padding
     this.geojsonLayer = options.geojsonLayer;
     this.customDrawFunction = options.customDrawFunction;
+    this.gridType = options.gridType || "square"; // Default to square grids, add 'hexagon', 'h3', 's2' later
 
     // Initialize grid data array
     this.gridData = [];
@@ -22,83 +24,53 @@ L.GriddedGlyph = L.CanvasLayer.extend({
     // Call the parent class's onAdd method
     L.CanvasLayer.prototype.onAdd.call(this, map);
 
-    // recalculate tree when map is moved
-    map.on("moveend", this._recalculateTree, this);
-
-    // Add event listeners for the zoomend and moveend events to the map
-    map.on("zoomend moveend", this.onMapChange, this);
+    // Add event listeners to the map
+    map.on("zoomend moveend", this._redraw, this);
 
     // Add an event listener for the mousemove event to the map
-    map.on("mousemove", this.onMouseMove, this);
+    map.on("mousemove", this._onMouseMove, this);
   },
 
   onRemove: function (map) {
     // Call the parent class's onRemove method
     L.CanvasLayer.prototype.onRemove.call(this, map);
 
-    // recalculate tree on moveend stops
-    map.off("moveend", this._recalculateTree, this);
-
-    // Remove the event listeners for the zoomend and moveend events from the map
-    map.off("zoomend moveend", this.onMapChange, this);
-
-    // Remove the event listener for the mousemove event from the map
-    map.off("mousemove", this.onMouseMove, this);
+    // Remove event listeners from the map
+    map.off("zoomend moveend", this._redraw, this);
+    map.off("mousemove", this._onMouseMove, this);
   },
 
-  onMapChange: function () {
-    // Clear the canvas
-    var canvas = this._canvas;
-    var ctx = canvas.getContext("2d");
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    // Recalculate grid data
-    var bounds = this.geojsonLayer.getBounds();
-    this.calculateGridData(bounds);
-
-    // Redraw grid and circles
-    this.drawGrid(ctx, bounds);
-    this.drawCircles(ctx, bounds);
-
-    // Call the custom draw function if it is defined
-    if (this.customDrawFunction) {
-      // this.customDrawFunction.call(this, ctx, bounds);
-    }
-  },
-
-  onMouseMove: function (e) {
+  _onMouseMove: function (e) {
     // Get current mouse position in container points
     var mousePos = e.containerPoint;
 
-    // Get bounds of GeoJSON layer
-    var bounds = this.geojsonLayer.getBounds();
+    // Find the cell that the mouse is over
+    var highlightedCell = this._findCellByCoords(mousePos);
 
-    // Convert bounds to container points
-    var northWest = this._map.latLngToContainerPoint(bounds.getNorthWest());
-    var southEast = this._map.latLngToContainerPoint(bounds.getSouthEast());
+    if (highlightedCell) {
+        // Get cell attributes
+        // console.log("Cell attributes:", highlightedCell.attributes);
 
-    // Calculate size of rectangles in pixels
-    var rectSize = this.gridSize;
-
-    // Calculate number of rows and columns
-    var cols = Math.ceil((southEast.x - northWest.x) / rectSize);
-    var rows = Math.ceil((southEast.y - northWest.y) / rectSize);
-
-    // Calculate grid cell size with padding
-    var cellSize = rectSize + this.padding;
-
-    // Calculate grid cell row and column
-    var col = Math.floor((mousePos.x - northWest.x) / cellSize);
-    var row = Math.floor((mousePos.y - northWest.y) / cellSize);
-
-    // Check if mouse is within grid bounds
-    if (row >= 0 && row < rows && col >= 0 && col < cols) {
-      // console.log("Grid cell:", row, col);
-      // console.log(
-      //   "Cell boundaries:",
-      //   this.gridData[row][col].bounds.toBBoxString()
-      // );
+        // You can do other things with the highlighted cell here,
+        // such as displaying a tooltip or changing the cell's style
     }
+  },
+
+  _findCellByCoords: function (coords) {
+    for (var i = 0; i < this.gridData.length; i++) {
+      for (var j = 0; j < this.gridData[i].length; j++) {
+        var cell = this.gridData[i][j];
+        if (
+          coords.x >= cell.x &&
+          coords.x <= cell.x + this.gridSize &&
+          coords.y >= cell.y &&
+          coords.y <= cell.y + this.gridSize
+        ) {
+          return cell;
+        }
+      }
+    }
+    return null; // No cell found at these coordinates
   },
 
   _recalculateTree: function () {
@@ -115,11 +87,21 @@ L.GriddedGlyph = L.CanvasLayer.extend({
         data: layer,
       });
     });
-
-    this._redraw();
   },
 
   calculateGridData: function (bounds) {
+    if (this.gridType === "square") {
+      this._calculateSquareGridData(bounds);
+    } else if (this.gridType === "hexagon") {
+      // this._calculateHexagonGridData(bounds); // Implement later
+    } else if (this.gridType === "h3") {
+      // this._calculateH3GridData(bounds); // Implement later
+    } else if (this.gridType === "s2") {
+      // this._calculateS2GridData(bounds); // Implement later
+    }
+  },
+
+  _calculateSquareGridData: function (bounds) {
     // Convert bounds to container points
     var northWest = this._map.latLngToContainerPoint(bounds.getNorthWest());
     var southEast = this._map.latLngToContainerPoint(bounds.getSouthEast());
@@ -136,16 +118,18 @@ L.GriddedGlyph = L.CanvasLayer.extend({
     for (var i = 0; i < rows; i++) {
       this.gridData[i] = [];
       for (var j = 0; j < cols; j++) {
+        var cellX = northWest.x + j * (rectSize + this.padding);
+        var cellY = northWest.y + i * (rectSize + this.padding);
+
         this.gridData[i][j] = {
           count: 0,
+          x: cellX, // Store cell's pixel coordinates for mouse interaction
+          y: cellY,
           bounds: L.latLngBounds(
+            this._map.containerPointToLatLng([cellX, cellY]),
             this._map.containerPointToLatLng([
-              northWest.x + j * (rectSize + this.padding),
-              northWest.y + i * (rectSize + this.padding),
-            ]),
-            this._map.containerPointToLatLng([
-              northWest.x + (j + 1) * (rectSize + this.padding),
-              northWest.y + (i + 1) * (rectSize + this.padding),
+              cellX + rectSize + this.padding,
+              cellY + rectSize + this.padding,
             ])
           ),
           attributes: [],
@@ -153,56 +137,16 @@ L.GriddedGlyph = L.CanvasLayer.extend({
       }
     }
 
-    // // Iterate through features directly, mapping them to grid cells
-    // // this is used for smaller dataset. for larger dataset, use rbush
-    // this.geojsonLayer.eachLayer((layer) => {
-    //   const latLng = layer.getLatLng();
-
-    //   // Find the corresponding grid cell index using container coordinates
-    //   const cellX = Math.floor(
-    //     (this._map.latLngToContainerPoint(latLng).x - northWest.x) / rectSize
-    //   );
-    //   const cellY = Math.floor(
-    //     (this._map.latLngToContainerPoint(latLng).y - northWest.y) / rectSize
-    //   );
-
-    //   // Ensure cell indices are within bounds
-    //   if (cellX >= 0 && cellX < cols && cellY >= 0 && cellY < rows) {
-    //     const cell = this.gridData[cellY][cellX];
-    //     cell.count++; // Increment feature count
-
-    //     // Store selected attributes
-    //     const attributesToStore = [
-    //       layer.feature.properties.Name,
-    //       layer.feature.properties.Tahun,
-    //     ]; // Example attributes
-    //     cell.attributes.push(attributesToStore);
-    //   }
-    // });
-
-    // Create a new RBush index
-    var tree = new rbush();
-
-    // Insert features into the index
-    var features = [];
-    this.geojsonLayer.eachLayer(function (layer) {
-      var latLng = layer.getLatLng();
-      features.push({
-        minX: latLng.lng,
-        minY: latLng.lat,
-        maxX: latLng.lng,
-        maxY: latLng.lat,
-        layer: layer,
-        data: layer.feature.properties,
-      });
-    });
-    tree.load(features);
+    // Create a new RBush index (if not already created)
+    if (!this._tree || this._tree.all().length === 0) {
+      this._recalculateTree();
+    }
 
     // Count number of features in each cell using the RBush index
     for (var i = 0; i < rows; i++) {
       for (var j = 0; j < cols; j++) {
         var cellBounds = this.gridData[i][j].bounds;
-        var results = tree.search({
+        var results = this._tree.search({
           minX: cellBounds.getWest(),
           minY: cellBounds.getSouth(),
           maxX: cellBounds.getEast(),
@@ -212,84 +156,82 @@ L.GriddedGlyph = L.CanvasLayer.extend({
         this.gridData[i][j].count = results.length;
 
         // Store selected attributes
-        cellData = this.gridData[i][j];
+        var cellData = this.gridData[i][j];
         for (const feature of results) {
-          cellData.attributes.push(feature.data); // Adjust based on your attribute structure
-          // cellData.aggregatedValue += // your aggregation logic using feature.data.properties
+          cellData.attributes.push(feature.data.feature.properties); // Adjust based on your attribute structure
         }
       }
     }
   },
 
   drawGrid: function (ctx, bounds) {
+    if (this.gridType === "square") {
+      this._drawSquareGrid(ctx, bounds);
+    } else if (this.gridType === "hexagon") {
+      // this._drawHexagonGrid(ctx, bounds); // Implement later
+    } // ... (other grid types)
+  },
+
+  _drawSquareGrid: function (ctx, bounds) {
     // Set the fill style with transparency
     ctx.fillStyle = "rgba(255, 0, 0, 0.5)";
 
-    // Convert the bounds to container points
-    var northWest = this._map.latLngToContainerPoint(bounds.getNorthWest());
-    var southEast = this._map.latLngToContainerPoint(bounds.getSouthEast());
-
-    // Calculate the size of the rectangles in pixels
-    var rectSize = this.gridSize;
-
-    // Calculate number of rows and columns
-    var cols = Math.ceil((southEast.x - northWest.x) / rectSize);
-    var rows = Math.ceil((southEast.y - northWest.y) / rectSize);
-
     // Draw grid of rectangles with padding
-    for (var i = 0; i < rows; i++) {
-      for (var j = 0; j < cols; j++) {
+    for (var i = 0; i < this.gridData.length; i++) {
+      for (var j = 0; j < this.gridData[i].length; j++) {
         // Only draw the rectangle if the cell contains data
         if (this.gridData[i][j].count > 0) {
           ctx.fillRect(
-            northWest.x + j * (rectSize + this.padding),
-            northWest.y + i * (rectSize + this.padding),
-            rectSize - this.padding,
-            rectSize - this.padding
+            this.gridData[i][j].x,
+            this.gridData[i][j].y,
+            this.gridSize - this.padding,
+            this.gridSize - this.padding
           );
         }
       }
     }
   },
 
-  drawCircles: function (ctx, bounds) {
-    // Set the stroke style
-    ctx.strokeStyle = "black";
-
-    // Draw circles
+  drawGlyphs: function (ctx, bounds) {
     for (var i = 0; i < this.gridData.length; i++) {
       for (var j = 0; j < this.gridData[i].length; j++) {
-        // Get cell data
         var cellData = this.gridData[i][j];
-        console.log("Grid data: ", cellData.attributes);
 
-        // Convert cell bounds to container points
+        // Convert cell bounds to container points (for square grids)
         var northWest = this._map.latLngToContainerPoint(
           cellData.bounds.getNorthWest()
         );
         var southEast = this._map.latLngToContainerPoint(
           cellData.bounds.getSouthEast()
         );
+        var centerX = (northWest.x + southEast.x) / 2;
+        var centerY = (northWest.y + southEast.y) / 2;
 
-        // Calculate circle center and radius
-        var centerX = (northWest.x + southEast.x) / 2 - this.padding;
-        var centerY = (northWest.y + southEast.y) / 2 - this.padding;
-
-        // Calculate the maximum radius based on the size of the cell and the padding between cells
-        var maxRadius = Math.min(
-          (southEast.x - northWest.x - this.padding * 2) / 2,
-          (southEast.y - northWest.y - this.padding * 2) / 2
-        );
-
-        // Calculate the radius based on the count of data in the cell
-        var radius = Math.min(cellData.count * 5, maxRadius);
-
-        // Draw circle with size that represents number of features in cell
-        ctx.beginPath();
-        ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
-        ctx.stroke();
+        // Default: draw a circle (if no custom draw function)
+        if (!this.customDrawFunction) {
+          this._drawCircleGlyph(ctx, cellData, centerX, centerY);
+        } else {
+          // Call custom draw function
+          this.customDrawFunction(ctx, cellData, centerX, centerY);
+        }
       }
     }
+  },
+
+  _drawCircleGlyph: function (ctx, cellData, centerX, centerY) {
+    // Set the stroke style
+    ctx.strokeStyle = "black";
+
+    // Calculate the maximum radius based on the size of the cell and the padding between cells
+    var maxRadius = this.gridSize / 2 - this.padding;
+
+    // Calculate the radius based on the count of data in the cell
+    var radius = Math.min(cellData.count * 5, maxRadius);
+
+    // Draw circle
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
+    ctx.stroke();
   },
 
   onDrawLayer: function (info) {
@@ -304,16 +246,11 @@ L.GriddedGlyph = L.CanvasLayer.extend({
     // Draw the grid of rectangles
     this.drawGrid(ctx, bounds);
 
-    // Draw the circles
-    this.drawCircles(ctx, bounds);
-
-    // Call the custom draw function if it is defined
-    if (this.customDrawFunction) {
-      // this.customDrawFunction.call(this, ctx, bounds);
-    }
+    // Draw the glyphs
+    this.drawGlyphs(ctx, bounds);
   },
 
-  _redraw() {
+  _redraw: function() {
     // Clear existing canvas
     const canvas = this._canvas;
     const ctx = canvas.getContext("2d");
@@ -328,18 +265,13 @@ L.GriddedGlyph = L.CanvasLayer.extend({
     this.drawGrid(ctx, bounds);
     ctx.restore();
 
-    // Redraw circles
+    // Redraw glyphs
     ctx.save();
-    this.drawCircles(ctx, bounds);
+    this.drawGlyphs(ctx, bounds);
     ctx.restore();
-
-    // Call custom draw function
-    if (this.customDrawFunction) {
-      this.customDrawFunction(ctx, bounds);
-    }
   },
 });
 
-L.griddedGlyph = function (geojsonLayer, options) {
-  return new L.GriddedGlyph(geojsonLayer, options);
+L.griddedGlyph = function (options) {
+  return new L.GriddedGlyph(options);
 };
