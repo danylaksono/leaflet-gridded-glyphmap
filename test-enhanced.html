@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enhanced GriddedGlyphMap Test</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="examples/l.canvaslayer.js"></script>
+    <style>
+        body { margin: 0; padding: 20px; font-family: Arial, sans-serif; }
+        #map { height: 500px; width: 100%; border: 1px solid #ccc; }
+        .info { background: #f0f0f0; padding: 10px; margin: 10px 0; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <h1>Enhanced GriddedGlyphMap Test</h1>
+    
+    <div class="info">
+        <h3>Test Controls</h3>
+        <button onclick="loadData()">Load Test Data</button>
+        <button onclick="showSchema()">Show Schema</button>
+        <button onclick="testVisualization()">Test Visualization</button>
+        <button onclick="clearData()">Clear</button>
+    </div>
+    
+    <div id="map"></div>
+
+    <script src="dist/leaflet-gridded-glyph.min.js"></script>
+    <script>
+        // Initialize map
+        const map = L.map('map').setView([0, 0], 2);
+        
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        let griddedGlyphLayer = null;
+        let geoJsonLayer = null;
+
+        // Test data
+        const testData = {
+            type: "FeatureCollection",
+            features: [
+                {
+                    type: "Feature",
+                    properties: { category: "A", value: 10, type: "Test" },
+                    geometry: { type: "Point", coordinates: [0, 0] }
+                },
+                {
+                    type: "Feature",
+                    properties: { category: "B", value: 20, type: "Test" },
+                    geometry: { type: "Point", coordinates: [1, 1] }
+                },
+                {
+                    type: "Feature",
+                    properties: { category: "A", value: 15, type: "Demo" },
+                    geometry: { type: "Point", coordinates: [-1, -1] }
+                }
+            ]
+        };
+
+        function loadData() {
+            try {
+                // Create GeoJSON layer
+                if (geoJsonLayer) {
+                    map.removeLayer(geoJsonLayer);
+                }
+                
+                geoJsonLayer = L.geoJSON(testData, {
+                    pointToLayer: function(feature, latlng) {
+                        return L.circleMarker(latlng, {
+                            radius: 3,
+                            fillColor: "#ff7800",
+                            color: "#000",
+                            weight: 1,
+                            opacity: 1,
+                            fillOpacity: 0.8
+                        });
+                    }
+                }).addTo(map);
+
+                // Create gridded glyph layer
+                if (griddedGlyphLayer) {
+                    map.removeLayer(griddedGlyphLayer);
+                }
+
+                griddedGlyphLayer = L.griddedGlyph({
+                    geojsonLayer: geoJsonLayer,
+                    gridSize: 30,
+                    padding: 2,
+                    gridType: 'square',
+                    debug: true
+                }).addTo(map);
+
+                // Load and process data
+                griddedGlyphLayer.loadData(testData).then(() => {
+                    console.log('Data loaded successfully');
+                    
+                    // Set fields for visualization
+                    griddedGlyphLayer.setSelectedFields(['category', 'value', 'type']);
+                    
+                    // Configure visualization
+                    griddedGlyphLayer.setVisualizationConfig({
+                        type: 'pie',
+                        field: 'category'
+                    });
+                    
+                    console.log('Schema:', griddedGlyphLayer.getDataSchema());
+                    console.log('Global stats:', griddedGlyphLayer.getGlobalStats());
+                    
+                    alert('Data loaded successfully! Check console for details.');
+                }).catch(error => {
+                    console.error('Error loading data:', error);
+                    alert('Error loading data: ' + error.message);
+                });
+
+            } catch (error) {
+                console.error('Error in loadData:', error);
+                alert('Error: ' + error.message);
+            }
+        }
+
+        function showSchema() {
+            if (!griddedGlyphLayer) {
+                alert('Please load data first');
+                return;
+            }
+
+            const schema = griddedGlyphLayer.getDataSchema();
+            const stats = griddedGlyphLayer.getGlobalStats();
+            
+            let info = 'Data Schema:\n';
+            Object.keys(schema).forEach(field => {
+                const fieldInfo = schema[field];
+                info += `\n${field}:\n`;
+                info += `  Type: ${fieldInfo.type}\n`;
+                info += `  Unique values: ${fieldInfo.uniqueCount}\n`;
+                
+                if (stats && stats[field]) {
+                    const stat = stats[field];
+                    info += `  Min: ${stat.min}\n`;
+                    info += `  Max: ${stat.max}\n`;
+                    info += `  Mean: ${stat.mean.toFixed(2)}\n`;
+                }
+            });
+            
+            alert(info);
+        }
+
+        function testVisualization() {
+            if (!griddedGlyphLayer) {
+                alert('Please load data first');
+                return;
+            }
+
+            // Test different visualization types
+            const visualizations = [
+                { type: 'bar', field: 'value' },
+                { type: 'pie', field: 'category' },
+                { type: 'text', field: 'type' },
+                { type: 'circle', field: 'value' }
+            ];
+
+            let currentIndex = 0;
+            
+            function cycleVisualization() {
+                const viz = visualizations[currentIndex];
+                griddedGlyphLayer.setVisualizationConfig(viz);
+                griddedGlyphLayer.invalidateCache();
+                griddedGlyphLayer._redraw();
+                
+                console.log('Visualization changed to:', viz);
+                alert(`Visualization: ${viz.type} for field: ${viz.field}`);
+                
+                currentIndex = (currentIndex + 1) % visualizations.length;
+            }
+
+            cycleVisualization();
+            
+            // Auto-cycle every 3 seconds
+            setInterval(cycleVisualization, 3000);
+        }
+
+        function clearData() {
+            if (griddedGlyphLayer) {
+                map.removeLayer(griddedGlyphLayer);
+                griddedGlyphLayer = null;
+            }
+            if (geoJsonLayer) {
+                map.removeLayer(geoJsonLayer);
+                geoJsonLayer = null;
+            }
+            console.log('Data cleared');
+        }
+
+        // Check if enhanced functionality is available
+        console.log('Enhanced GriddedGlyphMap Test');
+        console.log('Available data types:', window.DATA_TYPES);
+        console.log('Available aggregation types:', window.AGGREGATION_TYPES);
+        console.log('Available chart types:', window.CHART_TYPES);
+        console.log('GriddedGlyph available:', !!window.L.GriddedGlyph);
+    </script>
+</body>
+</html> 

@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Leaflet Gridded Glyph - Dynamic Mode Example</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="l.canvaslayer.js"></script>
+
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+        }
+        #map {
+            height: 600px;
+            width: 100%;
+            border: 1px solid #ccc;
+        }
+        .controls {
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #f5f5f5;
+            border-radius: 5px;
+        }
+        .control-group {
+            margin: 10px 0;
+        }
+        label {
+            display: inline-block;
+            width: 120px;
+            font-weight: bold;
+        }
+        button {
+            margin: 5px;
+            padding: 8px 16px;
+            background: #007cba;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background: #005a87;
+        }
+        .info {
+            background: #e7f3ff;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .status {
+            background: #f0f0f0;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+            font-family: monospace;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Leaflet Gridded Glyph - Dynamic Mode Example</h1>
+    
+    <div class="controls">
+        <div class="control-group">
+            <label>Mode:</label>
+            <button onclick="setMode('static')">Static Mode</button>
+            <button onclick="setMode('dynamic')">Dynamic Mode</button>
+        </div>
+        <div class="control-group">
+            <label>Grid Type:</label>
+            <button onclick="setGridType('square')">Square</button>
+            <button onclick="setGridType('hexagon')">Hexagon</button>
+        </div>
+        <div class="control-group">
+            <label>Grid Size:</label>
+            <input type="range" id="gridSize" min="10" max="50" value="20" onchange="updateGridSize()">
+            <span id="gridSizeValue">20</span>
+        </div>
+        <div class="info">
+            <strong>Dynamic Mode:</strong> Grid reaggregates on mouse movement, pan, and zoom.<br>
+            <strong>Static Mode:</strong> Grid is fixed in geographic space and only updates on map changes.
+        </div>
+        <div class="status" id="status">
+            Status: Initializing...
+        </div>
+    </div>
+
+    <div id="map"></div>
+
+    <script src="../dist/leaflet-gridded-glyph.min.js"></script>
+    <script>
+
+        // Initialize map
+        const map = L.map('map').setView([51.505, -0.09], 13);
+
+        // Add OpenStreetMap tiles
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        // Create sample GeoJSON data
+        const sampleData = {
+            type: 'FeatureCollection',
+            features: []
+        };
+
+        // Generate random points around London
+        for (let i = 0; i < 200; i++) {
+            const lat = 51.505 + (Math.random() - 0.5) * 0.1;
+            const lng = -0.09 + (Math.random() - 0.5) * 0.1;
+            sampleData.features.push({
+                type: 'Feature',
+                geometry: {
+                    type: 'Point',
+                    coordinates: [lng, lat]
+                },
+                properties: {
+                    id: i,
+                    value: Math.random() * 100,
+                    category: Math.floor(Math.random() * 3)
+                }
+            });
+        }
+
+        // Create GeoJSON layer
+        const geojsonLayer = L.geoJSON(sampleData, {
+            pointToLayer: function(feature, latlng) {
+                return L.circleMarker(latlng, {
+                    radius: 3,
+                    fillColor: '#ff7800',
+                    color: '#000',
+                    weight: 1,
+                    opacity: 1,
+                    fillOpacity: 0.8
+                });
+            }
+        }).addTo(map);
+
+        // Initialize GriddedGlyph layer
+        let griddedGlyphLayer = null;
+
+        function createGriddedGlyphLayer(options = {}) {
+            // Remove existing layer
+            if (griddedGlyphLayer) {
+                map.removeLayer(griddedGlyphLayer);
+            }
+
+            // Create new layer
+            griddedGlyphLayer = L.griddedGlyph({
+                geojsonLayer: geojsonLayer,
+                gridSize: parseInt(document.getElementById('gridSize').value),
+                padding: 2,
+                gridType: options.gridType || 'square',
+                dynamicMode: options.dynamicMode || false,
+                dynamicThrottle: 16, // 60fps
+                debug: true,
+                customDrawFunction: function(ctx, cellData, centerX, centerY) {
+                    // Custom glyph drawing
+                    ctx.strokeStyle = '#000';
+                    ctx.lineWidth = 2;
+                    
+                    // Draw circle with size based on count
+                    const maxRadius = 15;
+                    const radius = Math.min(cellData.count * 2, maxRadius);
+                    
+                    ctx.beginPath();
+                    ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
+                    ctx.stroke();
+                    
+                    // Draw count text
+                    if (cellData.count > 0) {
+                        ctx.fillStyle = '#000';
+                        ctx.font = '12px Arial';
+                        ctx.textAlign = 'center';
+                        ctx.fillText(cellData.count.toString(), centerX, centerY + 4);
+                    }
+                }
+            });
+
+            griddedGlyphLayer.addTo(map);
+            
+            // Update status
+            updateStatus();
+        }
+
+        function updateStatus() {
+            if (griddedGlyphLayer) {
+                const stats = griddedGlyphLayer.getCacheStats();
+                document.getElementById('status').innerHTML = `
+                    Mode: ${stats.dynamicMode ? 'Dynamic' : 'Static'}<br>
+                    Grid Type: ${griddedGlyphLayer.gridType}<br>
+                    Grid Size: ${griddedGlyphLayer.gridSize}<br>
+                    Cells: ${stats.gridDataLength}<br>
+                    Cached: ${stats.hasCachedBounds ? 'Yes' : 'No'}
+                `;
+            }
+        }
+
+        // Initialize with static mode
+        createGriddedGlyphLayer({ dynamicMode: false });
+
+        // Global functions for controls
+        window.setMode = function(mode) {
+            const isDynamic = mode === 'dynamic';
+            createGriddedGlyphLayer({ 
+                dynamicMode: isDynamic,
+                gridType: griddedGlyphLayer ? griddedGlyphLayer.gridType : 'square'
+            });
+            
+            // Update button styles
+            document.querySelectorAll('.control-group button').forEach(btn => {
+                btn.style.background = '#007cba';
+            });
+            event.target.style.background = '#005a87';
+        };
+
+        window.setGridType = function(type) {
+            if (griddedGlyphLayer) {
+                griddedGlyphLayer.gridType = type;
+                griddedGlyphLayer.invalidateCache();
+                griddedGlyphLayer._redraw();
+                updateStatus();
+            }
+            
+            // Update button styles
+            document.querySelectorAll('.control-group button').forEach(btn => {
+                if (btn.textContent.toLowerCase().includes(type)) {
+                    btn.style.background = '#005a87';
+                } else {
+                    btn.style.background = '#007cba';
+                }
+            });
+        };
+
+        window.updateGridSize = function() {
+            const size = document.getElementById('gridSize').value;
+            document.getElementById('gridSizeValue').textContent = size;
+            
+            if (griddedGlyphLayer) {
+                griddedGlyphLayer.gridSize = parseInt(size);
+                griddedGlyphLayer.invalidateCache();
+                griddedGlyphLayer._redraw();
+                updateStatus();
+            }
+        };
+
+        // Add some interactivity
+        map.on('click', function(e) {
+            if (griddedGlyphLayer) {
+                console.log('Grid stats:', griddedGlyphLayer.getCacheStats());
+                updateStatus();
+            }
+        });
+
+        // Update status periodically
+        setInterval(updateStatus, 1000);
+    </script>
+</body>
+</html> 

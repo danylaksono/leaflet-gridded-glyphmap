@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enhanced GriddedGlyphMap - Data Visualization Example</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="l.canvaslayer.js"></script>
+    <!-- <script src="data/data.js"></script>
+    <link rel="stylesheet" href="style.css" /> -->
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+        }
+        #map {
+            height: 600px;
+            width: 100%;
+            border: 1px solid #ccc;
+        }
+        .controls {
+            margin: 20px 0;
+            padding: 15px;
+            background: #f5f5f5;
+            border-radius: 5px;
+        }
+        .control-group {
+            margin: 10px 0;
+        }
+        label {
+            display: inline-block;
+            width: 120px;
+            font-weight: bold;
+        }
+        select, input, button {
+            padding: 5px;
+            margin: 2px;
+        }
+        .info-panel {
+            background: white;
+            padding: 10px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            margin: 10px 0;
+        }
+        .schema-info {
+            font-size: 12px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <h1>Enhanced GriddedGlyphMap - Data Visualization Example</h1>
+    
+    <div class="controls">
+        <div class="control-group">
+            <label>Grid Type:</label>
+            <select id="gridType">
+                <option value="square">Square</option>
+                <option value="hexagon">Hexagon</option>
+            </select>
+            
+            <label>Grid Size:</label>
+            <input type="range" id="gridSize" min="10" max="50" value="20">
+            <span id="gridSizeValue">20</span>
+        </div>
+        
+        <div class="control-group">
+            <label>Visualization:</label>
+            <select id="visualizationType">
+                <option value="circle">Circle (Default)</option>
+                <option value="bar">Bar Chart</option>
+                <option value="pie">Pie Chart</option>
+                <option value="text">Text</option>
+                <option value="icon">Icon</option>
+            </select>
+            
+            <label>Field:</label>
+            <select id="fieldSelect">
+                <option value="">Select a field...</option>
+            </select>
+        </div>
+        
+        <div class="control-group">
+            <button id="loadDataBtn">Load Sample Data</button>
+            <button id="clearBtn">Clear</button>
+            <button id="showSchemaBtn">Show Data Schema</button>
+        </div>
+    </div>
+    
+    <div class="info-panel">
+        <h3>Data Information</h3>
+        <div id="dataInfo">No data loaded</div>
+        <div id="schemaInfo" class="schema-info"></div>
+    </div>
+    
+    <div id="map"></div>
+
+    <script src="../dist/leaflet-gridded-glyph.min.js"></script>
+    <script>
+        // Initialize map
+        const map = L.map('map').setView([-7.7971, 110.3708], 10); // Yogyakarta area
+        
+        // Add OpenStreetMap tiles
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        let griddedGlyphLayer = null;
+        let currentData = null;
+
+        // Sample data (crime incidents in Yogyakarta)
+        const sampleData = {
+            type: "FeatureCollection",
+            features: [
+                {
+                    type: "Feature",
+                    properties: {
+                        crime_type: "Theft",
+                        severity: "Medium",
+                        age: 25,
+                        time: "14:30",
+                        district: "Sleman"
+                    },
+                    geometry: { type: "Point", coordinates: [110.3708, -7.7971] }
+                },
+                {
+                    type: "Feature",
+                    properties: {
+                        crime_type: "Assault",
+                        severity: "High",
+                        age: 32,
+                        time: "22:15",
+                        district: "Bantul"
+                    },
+                    geometry: { type: "Point", coordinates: [110.3239, -7.8751] }
+                },
+                {
+                    type: "Feature",
+                    properties: {
+                        crime_type: "Fraud",
+                        severity: "Low",
+                        age: 45,
+                        time: "09:45",
+                        district: "Yogyakarta"
+                    },
+                    geometry: { type: "Point", coordinates: [110.3966, -7.7652] }
+                },
+                {
+                    type: "Feature",
+                    properties: {
+                        crime_type: "Theft",
+                        severity: "Medium",
+                        age: 28,
+                        time: "16:20",
+                        district: "Sleman"
+                    },
+                    geometry: { type: "Point", coordinates: [110.4121, -7.7668] }
+                },
+                {
+                    type: "Feature",
+                    properties: {
+                        crime_type: "Assault",
+                        severity: "High",
+                        age: 19,
+                        time: "23:30",
+                        district: "Bantul"
+                    },
+                    geometry: { type: "Point", coordinates: [110.3605, -7.7176] }
+                },
+                {
+                    type: "Feature",
+                    properties: {
+                        crime_type: "Fraud",
+                        severity: "Low",
+                        age: 38,
+                        time: "11:15",
+                        district: "Yogyakarta"
+                    },
+                    geometry: { type: "Point", coordinates: [110.3839, -7.7197] }
+                },
+                {
+                    type: "Feature",
+                    properties: {
+                        crime_type: "Theft",
+                        severity: "Medium",
+                        age: 22,
+                        time: "13:45",
+                        district: "Sleman"
+                    },
+                    geometry: { type: "Point", coordinates: [110.3894, -7.8084] }
+                },
+                {
+                    type: "Feature",
+                    properties: {
+                        crime_type: "Assault",
+                        severity: "High",
+                        age: 29,
+                        time: "20:10",
+                        district: "Bantul"
+                    },
+                    geometry: { type: "Point", coordinates: [110.3688, -7.8282] }
+                }
+            ]
+        };
+
+        // Create GeoJSON layer
+        const geoJsonLayer = L.geoJSON(sampleData, {
+            pointToLayer: function(feature, latlng) {
+                return L.circleMarker(latlng, {
+                    radius: 3,
+                    fillColor: "#ff7800",
+                    color: "#000",
+                    weight: 1,
+                    opacity: 1,
+                    fillOpacity: 0.8
+                });
+            }
+        }).addTo(map);
+
+        // Initialize gridded glyph layer
+        function initializeGriddedGlyph() {
+            if (griddedGlyphLayer) {
+                map.removeLayer(griddedGlyphLayer);
+            }
+
+            const gridSize = parseInt(document.getElementById('gridSize').value);
+            const gridType = document.getElementById('gridType').value;
+
+            griddedGlyphLayer = L.griddedGlyph({
+                geojsonLayer: geoJsonLayer,
+                gridSize: gridSize,
+                padding: 2,
+                gridType: gridType,
+                debug: true,
+                dynamicMode: false
+            }).addTo(map);
+
+            // Load data if available
+            if (currentData) {
+                griddedGlyphLayer.loadData(currentData);
+            }
+        }
+
+        // Update visualization
+        function updateVisualization() {
+            if (!griddedGlyphLayer) return;
+
+            const visualizationType = document.getElementById('visualizationType').value;
+            const selectedField = document.getElementById('fieldSelect').value;
+
+            if (visualizationType === 'circle' || !selectedField) {
+                griddedGlyphLayer.setVisualizationConfig({});
+            } else {
+                const config = {
+                    type: visualizationType,
+                    field: selectedField
+                };
+
+                // Add specific configurations based on visualization type
+                if (visualizationType === 'bar' && selectedField === 'age') {
+                    config.maxValue = 50; // Set max value for age
+                }
+
+                griddedGlyphLayer.setVisualizationConfig(config);
+            }
+
+            // Force redraw
+            griddedGlyphLayer.invalidateCache();
+            griddedGlyphLayer._redraw();
+        }
+
+        // Update field select options
+        function updateFieldOptions() {
+            if (!griddedGlyphLayer || !griddedGlyphLayer.getDataSchema()) return;
+
+            const fieldSelect = document.getElementById('fieldSelect');
+            const schema = griddedGlyphLayer.getDataSchema();
+            
+            fieldSelect.innerHTML = '<option value="">Select a field...</option>';
+            
+            Object.keys(schema).forEach(field => {
+                const fieldInfo = schema[field];
+                const option = document.createElement('option');
+                option.value = field;
+                option.textContent = `${field} (${fieldInfo.type})`;
+                fieldSelect.appendChild(option);
+            });
+        }
+
+        // Show data schema information
+        function showDataSchema() {
+            if (!griddedGlyphLayer || !griddedGlyphLayer.getDataSchema()) {
+                alert('No data schema available. Please load data first.');
+                return;
+            }
+
+            const schema = griddedGlyphLayer.getDataSchema();
+            const globalStats = griddedGlyphLayer.getGlobalStats();
+            
+            let schemaText = 'Data Schema:\n';
+            Object.keys(schema).forEach(field => {
+                const fieldInfo = schema[field];
+                schemaText += `\n${field}:\n`;
+                schemaText += `  Type: ${fieldInfo.type}\n`;
+                schemaText += `  Unique values: ${fieldInfo.uniqueCount}\n`;
+                schemaText += `  Has nulls: ${fieldInfo.hasNulls}\n`;
+                
+                if (globalStats && globalStats[field]) {
+                    const stats = globalStats[field];
+                    schemaText += `  Min: ${stats.min}\n`;
+                    schemaText += `  Max: ${stats.max}\n`;
+                    schemaText += `  Mean: ${stats.mean.toFixed(2)}\n`;
+                }
+            });
+            
+            alert(schemaText);
+        }
+
+        // Event listeners
+        document.getElementById('loadDataBtn').addEventListener('click', async () => {
+            try {
+                currentData = sampleData;
+                await griddedGlyphLayer.loadData(sampleData);
+                updateFieldOptions();
+                
+                // Set default fields for visualization
+                griddedGlyphLayer.setSelectedFields(['crime_type', 'severity', 'age', 'district']);
+                
+                document.getElementById('dataInfo').innerHTML = 
+                    `Loaded ${sampleData.features.length} crime incidents`;
+                    
+            } catch (error) {
+                console.error('Error loading data:', error);
+                alert('Error loading data: ' + error.message);
+            }
+        });
+
+        document.getElementById('clearBtn').addEventListener('click', () => {
+            if (griddedGlyphLayer) {
+                map.removeLayer(griddedGlyphLayer);
+                griddedGlyphLayer = null;
+            }
+            currentData = null;
+            document.getElementById('dataInfo').innerHTML = 'No data loaded';
+            document.getElementById('fieldSelect').innerHTML = '<option value="">Select a field...</option>';
+        });
+
+        document.getElementById('showSchemaBtn').addEventListener('click', showDataSchema);
+
+        document.getElementById('gridType').addEventListener('change', initializeGriddedGlyph);
+        document.getElementById('gridSize').addEventListener('input', (e) => {
+            document.getElementById('gridSizeValue').textContent = e.target.value;
+            initializeGriddedGlyph();
+        });
+
+        document.getElementById('visualizationType').addEventListener('change', updateVisualization);
+        document.getElementById('fieldSelect').addEventListener('change', updateVisualization);
+
+        // Initialize
+        initializeGriddedGlyph();
+
+        // Add some helpful information
+        console.log('Enhanced GriddedGlyphMap Example');
+        console.log('Available data types:', window.DATA_TYPES);
+        console.log('Available aggregation types:', window.AGGREGATION_TYPES);
+        console.log('Available chart types:', window.CHART_TYPES);
+    </script>
+</body>
+</html> 

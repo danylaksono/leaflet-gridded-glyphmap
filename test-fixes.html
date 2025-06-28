@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Fixes - Leaflet Gridded Glyph</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="examples/l.canvaslayer.js"></script>
+    <style>
+        body { margin: 0; padding: 20px; font-family: Arial, sans-serif; }
+        #map { height: 500px; width: 100%; border: 1px solid #ccc; }
+        .controls { margin-bottom: 20px; padding: 15px; background: #f5f5f5; border-radius: 5px; }
+        button { margin: 5px; padding: 8px 16px; background: #007cba; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        .test-result { background: #e7f3ff; padding: 10px; border-radius: 4px; margin: 10px 0; }
+    </style>
+</head>
+<body>
+    <h1>Test Fixes - Leaflet Gridded Glyph</h1>
+    
+    <div class="controls">
+        <button onclick="testStaticSquare()">Test Static Square</button>
+        <button onclick="testStaticHexagon()">Test Static Hexagon</button>
+        <button onclick="testDynamicSquare()">Test Dynamic Square</button>
+        <button onclick="testDynamicHexagon()">Test Dynamic Hexagon</button>
+        <button onclick="testGridSize()">Test Grid Size</button>
+        <div class="test-result" id="testResult">Click a test button to run tests...</div>
+    </div>
+
+    <div id="map"></div>
+    <script src="../dist/leaflet-gridded-glyph.min.js"></script>
+    <script>
+        // Initialize map
+        const map = L.map('map').setView([51.505, -0.09], 13);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        // Create test data
+        const testData = {
+            type: 'FeatureCollection',
+            features: []
+        };
+
+        for (let i = 0; i < 50; i++) {
+            const lat = 51.505 + (Math.random() - 0.5) * 0.05;
+            const lng = -0.09 + (Math.random() - 0.5) * 0.05;
+            testData.features.push({
+                type: 'Feature',
+                geometry: { type: 'Point', coordinates: [lng, lat] },
+                properties: { id: i, value: Math.random() * 100 }
+            });
+        }
+
+        const geojsonLayer = L.geoJSON(testData, {
+            pointToLayer: function(feature, latlng) {
+                return L.circleMarker(latlng, {
+                    radius: 3, fillColor: '#ff7800', color: '#000', weight: 1, opacity: 1, fillOpacity: 0.8
+                });
+            }
+        }).addTo(map);
+
+        let griddedGlyphLayer = null;
+
+        function createLayer(options) {
+            if (griddedGlyphLayer) {
+                map.removeLayer(griddedGlyphLayer);
+            }
+
+            griddedGlyphLayer = L.griddedGlyph({
+                geojsonLayer: geojsonLayer,
+                gridSize: options.gridSize || 20,
+                padding: 2,
+                gridType: options.gridType || 'square',
+                dynamicMode: options.dynamicMode || false,
+                debug: true
+            });
+
+            griddedGlyphLayer.addTo(map);
+            return griddedGlyphLayer;
+        }
+
+        function logTestResult(testName, success, details = '') {
+            const result = document.getElementById('testResult');
+            const status = success ? '✅ PASS' : '❌ FAIL';
+            result.innerHTML += `<br><strong>${testName}:</strong> ${status} ${details}`;
+            console.log(`${testName}: ${success ? 'PASS' : 'FAIL'} ${details}`);
+        }
+
+        window.testStaticSquare = function() {
+            document.getElementById('testResult').innerHTML = 'Testing Static Square Mode...';
+            
+            try {
+                const layer = createLayer({ dynamicMode: false, gridType: 'square', gridSize: 20 });
+                const stats = layer.getCacheStats();
+                
+                logTestResult('Static Square - Layer Created', !!layer);
+                logTestResult('Static Square - Grid Data', stats.gridDataLength > 0, `(${stats.gridDataLength} cells)`);
+                logTestResult('Static Square - Cached', stats.hasCachedBounds);
+                
+            } catch (error) {
+                logTestResult('Static Square - Error', false, error.message);
+            }
+        };
+
+        window.testStaticHexagon = function() {
+            document.getElementById('testResult').innerHTML = 'Testing Static Hexagon Mode...';
+            
+            try {
+                const layer = createLayer({ dynamicMode: false, gridType: 'hexagon', gridSize: 20 });
+                const stats = layer.getCacheStats();
+                
+                logTestResult('Static Hexagon - Layer Created', !!layer);
+                logTestResult('Static Hexagon - Grid Data', stats.gridDataLength > 0, `(${stats.gridDataLength} cells)`);
+                logTestResult('Static Hexagon - Cached', stats.hasCachedBounds);
+                
+            } catch (error) {
+                logTestResult('Static Hexagon - Error', false, error.message);
+            }
+        };
+
+        window.testDynamicSquare = function() {
+            document.getElementById('testResult').innerHTML = 'Testing Dynamic Square Mode...';
+            
+            try {
+                const layer = createLayer({ dynamicMode: true, gridType: 'square', gridSize: 20 });
+                const stats = layer.getCacheStats();
+                
+                logTestResult('Dynamic Square - Layer Created', !!layer);
+                logTestResult('Dynamic Square - Dynamic Mode', stats.dynamicMode);
+                logTestResult('Dynamic Square - Grid Data', stats.gridDataLength > 0, `(${stats.gridDataLength} cells)`);
+                
+            } catch (error) {
+                logTestResult('Dynamic Square - Error', false, error.message);
+            }
+        };
+
+        window.testDynamicHexagon = function() {
+            document.getElementById('testResult').innerHTML = 'Testing Dynamic Hexagon Mode...';
+            
+            try {
+                const layer = createLayer({ dynamicMode: true, gridType: 'hexagon', gridSize: 20 });
+                const stats = layer.getCacheStats();
+                
+                logTestResult('Dynamic Hexagon - Layer Created', !!layer);
+                logTestResult('Dynamic Hexagon - Dynamic Mode', stats.dynamicMode);
+                logTestResult('Dynamic Hexagon - Grid Data', stats.gridDataLength > 0, `(${stats.gridDataLength} cells)`);
+                
+            } catch (error) {
+                logTestResult('Dynamic Hexagon - Error', false, error.message);
+            }
+        };
+
+        window.testGridSize = function() {
+            document.getElementById('testResult').innerHTML = 'Testing Grid Size Changes...';
+            
+            try {
+                const layer = createLayer({ dynamicMode: false, gridType: 'square', gridSize: 10 });
+                let stats = layer.getCacheStats();
+                const initialCells = stats.gridDataLength;
+                
+                // Change grid size
+                layer.gridSize = 30;
+                layer.invalidateCache();
+                layer._redraw();
+                
+                stats = layer.getCacheStats();
+                const finalCells = stats.gridDataLength;
+                
+                logTestResult('Grid Size - Initial', initialCells > 0, `(${initialCells} cells)`);
+                logTestResult('Grid Size - Changed', finalCells > 0, `(${finalCells} cells)`);
+                logTestResult('Grid Size - Different', initialCells !== finalCells);
+                
+            } catch (error) {
+                logTestResult('Grid Size - Error', false, error.message);
+            }
+        };
+    </script>
+</body>
+</html> 
