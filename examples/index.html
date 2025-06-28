@@ -60,10 +60,30 @@
         gridSize: 50,
         padding: 3,
         geojsonLayer: geojsonLayer,
+        debug: true, // Enable debug logging
         // customDrawFunction: {drawBarCharts,
         //    barColor: "green"}
       });
       griddedLayer.addTo(map);
+
+      // Add cache statistics display
+      var cacheStatsDiv = document.createElement('div');
+      cacheStatsDiv.id = 'cache-stats';
+      cacheStatsDiv.style.cssText = 'position: absolute; top: 10px; right: 10px; background: white; padding: 10px; border: 1px solid #ccc; font-size: 12px; z-index: 1000;';
+      document.body.appendChild(cacheStatsDiv);
+
+      // Update cache stats every second
+      setInterval(function() {
+        var stats = griddedLayer.getCacheStats();
+        cacheStatsDiv.innerHTML = `
+          <strong>Cache Statistics:</strong><br>
+          Cached Bounds: ${stats.hasCachedBounds}<br>
+          Cached Zoom: ${stats.cachedZoom}<br>
+          Grid Data Length: ${stats.gridDataLength}<br>
+          Data Hash: ${stats.dataHash ? stats.dataHash.substring(0, 8) + '...' : 'null'}<br>
+          <button onclick="griddedLayer.invalidateCache()">Invalidate Cache</button>
+        `;
+      }, 1000);
 
       // Controls
       var baseMaps = {

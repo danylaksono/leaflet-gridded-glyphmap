@@ -15,9 +15,114 @@ L.GriddedGlyph = L.CanvasLayer.extend({
     this.geojsonLayer = options.geojsonLayer;
     this.customDrawFunction = options.customDrawFunction;
     this.gridType = options.gridType || "square"; // Default to square grids, add 'hexagon', 'h3', 's2' later
+    this.debug = options.debug || false; // Enable debug logging
 
     // Initialize grid data array
     this.gridData = [];
+    
+    // Cache properties for performance optimization
+    this._cachedBounds = null;
+    this._cachedZoom = null;
+    this._cachedGridSize = null;
+    this._cachedPadding = null;
+    this._cachedGridType = null;
+    this._dataHash = null; // Hash to detect if GeoJSON data changed
+    this._cachedGridOriginX = null;
+    this._cachedGridOriginY = null;
+  },
+
+  /**
+   * Generate a simple hash of GeoJSON data to detect changes
+   * @private
+   */
+  _generateDataHash: function() {
+    if (!this.geojsonLayer) return null;
+    
+    let hash = 0;
+    let count = 0;
+    
+    this.geojsonLayer.eachLayer((layer) => {
+      const latLng = layer.getLatLng();
+      hash = ((hash << 5) - hash + latLng.lat + latLng.lng) & 0xffffffff;
+      count++;
+    });
+    
+    return hash + '_' + count;
+  },
+
+  /**
+   * Check if grid data needs to be recalculated
+   * @private
+   */
+  _needsRecalculation: function(bounds) {
+    const currentZoom = this._map.getZoom();
+    const currentDataHash = this._generateDataHash();
+    
+    // Calculate grid origin in container points
+    const northWest = this._map.latLngToContainerPoint(bounds.getNorthWest());
+    const gridOriginX = Math.floor(northWest.x / this.gridSize) * this.gridSize;
+    const gridOriginY = Math.floor(northWest.y / this.gridSize) * this.gridSize;
+    const gridOriginChanged = (
+      this._cachedGridOriginX !== gridOriginX ||
+      this._cachedGridOriginY !== gridOriginY
+    );
+    
+    // Check if any relevant properties have changed
+    const zoomChanged = this._cachedZoom !== currentZoom;
+    const gridSizeChanged = this._cachedGridSize !== this.gridSize;
+    const paddingChanged = this._cachedPadding !== this.padding;
+    const gridTypeChanged = this._cachedGridType !== this.gridType;
+    const dataChanged = this._dataHash !== currentDataHash;
+    
+    return gridOriginChanged || zoomChanged || gridSizeChanged || paddingChanged || gridTypeChanged || dataChanged;
+  },
+
+  /**
+   * Update cache properties after recalculation
+   * @private
+   */
+  _updateCache: function(bounds) {
+    const northWest = this._map.latLngToContainerPoint(bounds.getNorthWest());
+    this._cachedGridOriginX = Math.floor(northWest.x / this.gridSize) * this.gridSize;
+    this._cachedGridOriginY = Math.floor(northWest.y / this.gridSize) * this.gridSize;
+    this._cachedBounds = bounds;
+    this._cachedZoom = this._map.getZoom();
+    this._cachedGridSize = this.gridSize;
+    this._cachedPadding = this.padding;
+    this._cachedGridType = this.gridType;
+    this._dataHash = this._generateDataHash();
+  },
+
+  /**
+   * Manually invalidate the cache to force recalculation
+   * Useful when data is updated externally
+   */
+  invalidateCache: function() {
+    this._cachedBounds = null;
+    this._cachedZoom = null;
+    this._cachedGridSize = null;
+    this._cachedPadding = null;
+    this._cachedGridType = null;
+    this._dataHash = null;
+    this._cachedGridOriginX = null;
+    this._cachedGridOriginY = null;
+  },
+
+  /**
+   * Get cache statistics for monitoring
+   * @returns {Object} Cache statistics
+   */
+  getCacheStats: function() {
+    return {
+      hasCachedBounds: !!this._cachedBounds,
+      cachedZoom: this._cachedZoom,
+      cachedGridSize: this._cachedGridSize,
+      cachedPadding: this._cachedPadding,
+      cachedGridType: this._cachedGridType,
+      dataHash: this._dataHash,
+      currentDataHash: this._generateDataHash(),
+      gridDataLength: this.gridData.length
+    };
   },
 
   onAdd: function (map) {
@@ -34,6 +139,11 @@ L.GriddedGlyph = L.CanvasLayer.extend({
   onRemove: function (map) {
     // Call the parent class's onRemove method
     L.CanvasLayer.prototype.onRemove.call(this, map);
+
+    // Clean up resources
+    this._tree.clear();
+    this.gridData = [];
+    this._cachedBounds = null;
 
     // Remove event listeners from the map
     map.off("zoomend moveend", this._redraw, this);
@@ -90,6 +200,18 @@ L.GriddedGlyph = L.CanvasLayer.extend({
   },
 
   calculateGridData: function (bounds) {
+    // Check if recalculation is needed
+    if (!this._needsRecalculation(bounds)) {
+      if (this.options.debug) {
+        console.log('Grid data cache hit - using cached data');
+      }
+      return; // Use cached data
+    }
+    
+    if (this.options.debug) {
+      console.log('Grid data cache miss - recalculating');
+    }
+    
     if (this.gridType === "square") {
       this._calculateSquareGridData(bounds);
     } else if (this.gridType === "hexagon") {
@@ -99,6 +221,9 @@ L.GriddedGlyph = L.CanvasLayer.extend({
     } else if (this.gridType === "s2") {
       // this._calculateS2GridData(bounds); // Implement later
     }
+    
+    // Update cache after recalculation
+    this._updateCache(bounds);
   },
 
   _calculateSquareGridData: function (bounds) {
@@ -137,8 +262,8 @@ L.GriddedGlyph = L.CanvasLayer.extend({
       }
     }
 
-    // Create a new RBush index (if not already created)
-    if (!this._tree || this._tree.all().length === 0) {
+    // Create a new RBush index (if not already created or if data changed)
+    if (!this._tree || this._tree.all().length === 0 || this._dataHash !== this._generateDataHash()) {
       this._recalculateTree();
     }
 
@@ -275,3 +400,10 @@ L.GriddedGlyph = L.CanvasLayer.extend({
 L.griddedGlyph = function (options) {
   return new L.GriddedGlyph(options);
 };
+
+// Export for browser environment
+if (typeof window !== 'undefined') {
+  window.L = window.L || {};
+  window.L.GriddedGlyph = L.GriddedGlyph;
+  window.L.griddedGlyph = L.griddedGlyph;
+}
